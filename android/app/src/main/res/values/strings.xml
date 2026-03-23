@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tool Vault</string>
+    <string name="title_activity_main">Tool Vault</string>
+    <string name="package_name">com.toolvault.app</string>
+    <string name="custom_url_scheme">com.toolvault.app</string>
+</resources>
