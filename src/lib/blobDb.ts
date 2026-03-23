@@ -50,7 +50,8 @@ export async function getDb(): Promise<DbSchema> {
       return { tools: [], collections: [] };
     }
     
-    const response = await fetch(file.url, { cache: 'no-store' });
+    // Add cache buster to bypass Vercel Edge Cache since addRandomSuffix is false
+    const response = await fetch(`${file.url}?t=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) {
         return { tools: [], collections: [] };
     }
