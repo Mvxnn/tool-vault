@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { exportData, importData } from "@/lib/client-actions";
+
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
@@ -22,20 +22,20 @@ export default function SettingsPage() {
     const handleExport = async () => {
         try {
             setIsExporting(true)
-            const jsonData = await exportData()
+            const res = await fetch('/api/export')
+            if (!res.ok) throw new Error('Export failed')
+            const jsonData = JSON.stringify(await res.json(), null, 2)
 
             const date = new Date().toISOString().split('T')[0]
             const fileName = `toolvault-backup-${date}.json`
 
             if (Capacitor.isNativePlatform()) {
-                // native export logic using Filesystem & Share
                 const result = await Filesystem.writeFile({
                     path: fileName,
                     data: jsonData,
                     directory: Directory.Cache,
                     encoding: Encoding.UTF8
                 });
-
                 await Share.share({
                     title: 'ToolVault Backup',
                     text: 'Voici ma sauvegarde ToolVault',
@@ -44,7 +44,6 @@ export default function SettingsPage() {
                 });
                 toast.success('Données prêtes à être partagées ou sauvegardées');
             } else {
-                // web export logic
                 const blob = new Blob([jsonData], { type: 'application/json' })
                 const url = URL.createObjectURL(blob)
                 const a = document.createElement('a')
@@ -75,10 +74,20 @@ export default function SettingsPage() {
         try {
             setIsImporting(true)
             const text = await file.text()
-            const result = await importData(text)
+            const jsonData = JSON.parse(text)
 
-            if (result.success) {
+            const res = await fetch('/api/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(jsonData)
+            })
+
+            const result = await res.json()
+
+            if (res.ok && result.success) {
                 toast.success('Données importées avec succès')
+                // Reload to reflect imported data
+                window.location.reload()
             } else {
                 toast.error(result.error || 'Erreur lors de l\'importation')
             }
