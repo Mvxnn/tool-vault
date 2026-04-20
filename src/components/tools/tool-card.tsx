@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { ExternalLink, Star, MoreVertical, Trash2, Edit, Heart } from 'lucide-react'
-import type { Tag } from '@/lib/db'
+
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -126,7 +126,7 @@ export function ToolCard({ tool }: ToolCardProps) {
                     </p>
 
                     <div className="flex flex-wrap gap-1 mt-auto">
-                        {tool.tags.slice(0, 4).map((tag: Tag) => (
+                        {tool.tags.slice(0, 4).map((tag: { id: string; name: string }) => (
                             <Badge key={tag.id} variant="secondary" className="px-1.5 py-0 text-[10px] font-medium opacity-80">
                                 {tag.name}
                             </Badge>

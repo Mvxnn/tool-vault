@@ -230,7 +230,7 @@ export default function SettingsPage() {
                         <div className="flex justify-between text-xs sm:text-sm py-1.5">
                             <span className="text-muted-foreground">Base de données</span>
                             <span className="font-medium flex items-center gap-1">
-                                <Smartphone className="h-3 w-3" /> IndexedDB (local)
+                                ☁️ Vercel Blob (cloud)
                             </span>
                         </div>
                         <div className="flex justify-between text-xs sm:text-sm py-1.5">

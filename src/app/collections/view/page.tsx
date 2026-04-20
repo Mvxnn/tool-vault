@@ -6,8 +6,7 @@ import { ToolGrid } from '@/components/tools/tool-grid'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Layers } from 'lucide-react'
 import Link from 'next/link'
-import { getCollectionById, type ToolWithRelations } from '@/lib/client-actions'
-import type { Collection } from '@/lib/db'
+import { getCollectionById, type ToolWithRelations, type Collection } from '@/lib/client-actions'
 
 interface CollectionData extends Collection {
     tools: ToolWithRelations[]

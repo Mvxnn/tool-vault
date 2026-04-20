@@ -1,10 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getDb, saveDb, ToolData, ToolStatus } from '@/lib/blobDb'
+import { getDb, saveDb } from '@/lib/blobDb'
+import type { ToolData } from '@/lib/blobDb'
 import { v4 as uuidv4 } from 'uuid'
 
-export type { ToolData as ToolWithRelations, ToolStatus }
+export type ToolStatus = 'TO_TRY' | 'TESTED' | 'FAVORITE' | 'DEPRECATED'
 
 export interface ToolFormData {
     name: string

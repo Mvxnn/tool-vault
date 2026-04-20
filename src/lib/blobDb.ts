@@ -1,5 +1,4 @@
-import { put, list, del } from '@vercel/blob';
-import type { ToolWithRelations } from '@/actions/tools';
+import { put, list } from '@vercel/blob';
 
 const DB_FILENAME = 'data.json';
 

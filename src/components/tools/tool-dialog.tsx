@@ -31,8 +31,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
-import { createTool, updateTool, getCollections, type ToolFormData, type ToolWithRelations } from '@/lib/client-actions'
-import type { Collection } from '@/lib/db'
+import { createTool, updateTool, getCollections, type ToolFormData, type ToolWithRelations, type Collection } from '@/lib/client-actions'
 import { Loader2, X, Layers } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from "sonner"

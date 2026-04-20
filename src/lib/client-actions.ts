@@ -1,15 +1,25 @@
-import { db, generateId, type Tool, type Tag, type Collection } from './db'
-
 // ==========================================
-// TYPES
+// TYPES (kept compatible with existing UI components)
 // ==========================================
-
-export type ToolWithRelations = Tool & {
-    tags: Tag[]
-    collections: Collection[]
-}
 
 export type ToolStatus = 'TO_TRY' | 'TESTED' | 'FAVORITE' | 'DEPRECATED'
+
+export interface ToolWithRelations {
+    id: string
+    name: string
+    url: string
+    description?: string | null
+    notes?: string | null
+    rating: number
+    status: string
+    pricingType: string
+    price?: string | null
+    image?: string | null
+    createdAt: Date
+    updatedAt: Date
+    tags: { id: string; name: string }[]
+    collections: { id: string; name: string; description: string | null; createdAt: Date; updatedAt: Date }[]
+}
 
 export interface ToolFormData {
     name: string
@@ -25,6 +35,14 @@ export interface ToolFormData {
     collections?: string[]
 }
 
+export interface Collection {
+    id: string
+    name: string
+    description?: string | null
+    createdAt: Date
+    updatedAt: Date
+}
+
 export interface CollectionFormData {
     name: string
     description?: string
@@ -35,121 +53,68 @@ export interface CollectionWithCount extends Collection {
 }
 
 // ==========================================
+// HELPERS
+// ==========================================
+
+function parseDates<T>(obj: T): T {
+    const o = obj as any;
+    return {
+        ...obj,
+        ...(o.createdAt !== undefined ? { createdAt: new Date(o.createdAt as string) } : {}),
+        ...(o.updatedAt !== undefined ? { updatedAt: new Date(o.updatedAt as string) } : {}),
+    }
+}
+
+async function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error || `POST ${path} failed`)
+    }
+    return res.json() as Promise<T>
+}
+
+// ==========================================
 // TOOL ACTIONS
 // ==========================================
 
 export async function getTools(query?: string, status?: string): Promise<ToolWithRelations[]> {
-    let tools = await db.tools.orderBy('updatedAt').reverse().toArray()
+    const params = new URLSearchParams()
+    if (query) params.set('q', query)
+    if (status && status !== 'ALL') params.set('status', status)
 
-    // Filter by status
-    if (status && status !== 'ALL') {
-        tools = tools.filter(t => t.status === status)
-    }
+    const res = await fetch(`/api/tools${params.toString() ? '?' + params.toString() : ''}`, {
+        cache: 'no-store',
+    })
+    if (!res.ok) throw new Error('Failed to fetch tools')
 
-    // Filter by query (search in name, description, tags)
-    if (query) {
-        const q = query.toLowerCase()
-        const allToolTags = await db.toolTags.toArray()
-        const allTags = await db.tags.toArray()
-        const tagMap = new Map(allTags.map(t => [t.id, t.name.toLowerCase()]))
-
-        tools = tools.filter(tool => {
-            const nameMatch = tool.name.toLowerCase().includes(q)
-            const descMatch = tool.description?.toLowerCase().includes(q)
-            const toolTagIds = allToolTags.filter(tt => tt.toolId === tool.id).map(tt => tt.tagId)
-            const tagMatch = toolTagIds.some(tagId => tagMap.get(tagId)?.includes(q))
-            return nameMatch || descMatch || tagMatch
-        })
-    }
-
-    // Populate relations
-    return Promise.all(tools.map(tool => populateToolRelations(tool)))
+    const data = await res.json()
+    return (data as ToolWithRelations[]).map(t => parseDates(t))
 }
 
-export async function createTool(data: ToolFormData): Promise<Tool> {
-    const now = new Date()
-    const toolId = generateId()
-
-    const tool: Tool = {
-        id: toolId,
-        name: data.name,
-        url: data.url,
-        description: data.description || undefined,
-        notes: data.notes || undefined,
-        rating: data.rating || 0,
-        status: data.status,
-        pricingType: data.pricingType || 'FREE',
-        price: data.price || undefined,
-        image: data.image || undefined,
-        createdAt: now,
-        updatedAt: now,
-    }
-
-    await db.tools.add(tool)
-
-    // Handle tags (connectOrCreate)
-    for (const tagName of data.tags) {
-        let tag = await db.tags.where('name').equals(tagName).first()
-        if (!tag) {
-            tag = { id: generateId(), name: tagName }
-            await db.tags.add(tag)
-        }
-        await db.toolTags.add({ toolId, tagId: tag.id })
-    }
-
-    // Handle collections
-    if (data.collections) {
-        for (const collectionId of data.collections) {
-            await db.toolCollections.add({ toolId, collectionId })
-        }
-    }
-
-    return tool
+export async function createTool(data: ToolFormData): Promise<ToolWithRelations> {
+    const result = await apiPost<ToolWithRelations>('/api/tools', { action: 'create', data })
+    dispatchUpdate('tools-updated')
+    return parseDates(result)
 }
 
 export async function updateTool(id: string, data: Partial<ToolFormData>): Promise<void> {
-    const { tags, collections, ...rest } = data
-
-    await db.tools.update(id, {
-        ...rest,
-        updatedAt: new Date(),
-    })
-
-    // Update tags
-    if (tags) {
-        // Clear existing tags
-        await db.toolTags.where('toolId').equals(id).delete()
-        // Add new tags
-        for (const tagName of tags) {
-            let tag = await db.tags.where('name').equals(tagName).first()
-            if (!tag) {
-                tag = { id: generateId(), name: tagName }
-                await db.tags.add(tag)
-            }
-            await db.toolTags.add({ toolId: id, tagId: tag.id })
-        }
-    }
-
-    // Update collections
-    if (collections) {
-        await db.toolCollections.where('toolId').equals(id).delete()
-        for (const collectionId of collections) {
-            await db.toolCollections.add({ toolId: id, collectionId })
-        }
-    }
+    await apiPost('/api/tools', { action: 'update', id, data })
+    dispatchUpdate('tools-updated')
 }
 
 export async function deleteTool(id: string): Promise<void> {
-    await db.tools.delete(id)
-    await db.toolTags.where('toolId').equals(id).delete()
-    await db.toolCollections.where('toolId').equals(id).delete()
+    await apiPost('/api/tools', { action: 'delete', id })
+    dispatchUpdate('tools-updated')
 }
 
 export async function toggleFavorite(id: string, isFavorite: boolean): Promise<void> {
-    await db.tools.update(id, {
-        status: isFavorite ? 'FAVORITE' : 'TESTED',
-        updatedAt: new Date(),
-    })
+    await apiPost('/api/tools', { action: 'toggleFavorite', id, data: { isFavorite } })
+    dispatchUpdate('tools-updated')
 }
 
 // ==========================================
@@ -157,62 +122,39 @@ export async function toggleFavorite(id: string, isFavorite: boolean): Promise<v
 // ==========================================
 
 export async function getCollections(): Promise<Collection[]> {
-    return db.collections.orderBy('updatedAt').reverse().toArray()
+    const res = await fetch('/api/collections', { cache: 'no-store' })
+    if (!res.ok) throw new Error('Failed to fetch collections')
+    const data = await res.json()
+    return (data as Collection[]).map(c => parseDates(c))
 }
 
 export async function getCollectionsWithCount(): Promise<CollectionWithCount[]> {
-    const collections = await db.collections.orderBy('updatedAt').reverse().toArray()
-
-    return Promise.all(
-        collections.map(async (collection) => {
-            const count = await db.toolCollections
-                .where('collectionId')
-                .equals(collection.id)
-                .count()
-            return {
-                ...collection,
-                _count: { tools: count },
-            }
-        })
-    )
+    const res = await fetch('/api/collections?withCount=true', { cache: 'no-store' })
+    if (!res.ok) throw new Error('Failed to fetch collections')
+    const data = await res.json()
+    return (data as CollectionWithCount[]).map(c => parseDates(c))
 }
 
 export async function createCollection(data: CollectionFormData): Promise<Collection> {
-    const now = new Date()
-    const collection: Collection = {
-        id: generateId(),
-        name: data.name,
-        description: data.description || undefined,
-        createdAt: now,
-        updatedAt: now,
-    }
-
-    await db.collections.add(collection)
-    return collection
+    const result = await apiPost<Collection>('/api/collections', { action: 'create', data })
+    dispatchUpdate('collections-updated')
+    return parseDates(result)
 }
 
 export async function deleteCollection(id: string): Promise<void> {
-    await db.collections.delete(id)
-    await db.toolCollections.where('collectionId').equals(id).delete()
+    await apiPost('/api/collections', { action: 'delete', id })
+    dispatchUpdate('collections-updated')
+    dispatchUpdate('tools-updated')
 }
 
-export async function getCollectionById(id: string) {
-    const collection = await db.collections.get(id)
-    if (!collection) return null
-
-    // Get tools in this collection
-    const toolCollections = await db.toolCollections
-        .where('collectionId')
-        .equals(id)
-        .toArray()
-    const toolIds = toolCollections.map(tc => tc.toolId)
-
-    const tools = await db.tools.where('id').anyOf(toolIds).toArray()
-    const toolsWithRelations = await Promise.all(tools.map(t => populateToolRelations(t)))
-
+export async function getCollectionById(id: string): Promise<(Collection & { tools: ToolWithRelations[] }) | null> {
+    const res = await fetch(`/api/collections/${id}`, { cache: 'no-store' })
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error('Failed to fetch collection')
+    const data = await res.json()
     return {
-        ...collection,
-        tools: toolsWithRelations,
+        ...parseDates(data),
+        tools: (data.tools as ToolWithRelations[]).map(t => parseDates(t)),
     }
 }
 
@@ -221,65 +163,28 @@ export async function getCollectionById(id: string) {
 // ==========================================
 
 export async function exportData(): Promise<string> {
-    const data = {
-        tools: await db.tools.toArray(),
-        tags: await db.tags.toArray(),
-        collections: await db.collections.toArray(),
-        toolTags: await db.toolTags.toArray(),
-        toolCollections: await db.toolCollections.toArray(),
-        version: 1, // Store semantic version for future migrations
-        exportedAt: new Date().toISOString()
-    }
-
+    const res = await fetch('/api/export', { cache: 'no-store' })
+    if (!res.ok) throw new Error('Export failed')
+    const data = await res.json()
     return JSON.stringify(data, null, 2)
 }
 
 export async function importData(jsonData: string): Promise<{ success: boolean; error?: string }> {
     try {
         const data = JSON.parse(jsonData)
-
-        // Basic validation
-        if (!data || typeof data !== 'object') {
-            throw new Error('Format de données invalide')
-        }
-
-        // Start a transaction for safe import
-        await db.transaction('rw', [db.tools, db.tags, db.collections, db.toolTags, db.toolCollections], async () => {
-            // Use bulkPut to upsert records (merge instead of overwrite/delete)
-            if (data.tools && Array.isArray(data.tools)) {
-                // Restore Date objects
-                const tools = data.tools.map((t: any) => ({
-                    ...t,
-                    createdAt: new Date(t.createdAt),
-                    updatedAt: new Date(t.updatedAt)
-                }))
-                await db.tools.bulkPut(tools)
-            }
-            if (data.tags && Array.isArray(data.tags)) {
-                await db.tags.bulkPut(data.tags)
-            }
-            if (data.collections && Array.isArray(data.collections)) {
-                const collections = data.collections.map((c: any) => ({
-                    ...c,
-                    createdAt: new Date(c.createdAt),
-                    updatedAt: new Date(c.updatedAt)
-                }))
-                await db.collections.bulkPut(collections)
-            }
-            if (data.toolTags && Array.isArray(data.toolTags)) {
-                await db.toolTags.bulkPut(data.toolTags)
-            }
-            if (data.toolCollections && Array.isArray(data.toolCollections)) {
-                await db.toolCollections.bulkPut(data.toolCollections)
-            }
+        const res = await fetch('/api/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
         })
-
-        return { success: true }
+        const result = await res.json()
+        return res.ok && result.success
+            ? { success: true }
+            : { success: false, error: result.error || 'Erreur inconnue lors de l\'import' }
     } catch (error) {
-        console.error('Import failed:', error)
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Erreur inconnue lors de l\'import'
+            error: error instanceof Error ? error.message : 'Erreur inconnue',
         }
     }
 }
@@ -288,18 +193,8 @@ export async function importData(jsonData: string): Promise<{ success: boolean; 
 // HELPERS
 // ==========================================
 
-async function populateToolRelations(tool: Tool): Promise<ToolWithRelations> {
-    // Get tags
-    const toolTags = await db.toolTags.where('toolId').equals(tool.id).toArray()
-    const tagIds = toolTags.map(tt => tt.tagId)
-    const tags = tagIds.length > 0 ? await db.tags.where('id').anyOf(tagIds).toArray() : []
-
-    // Get collections
-    const toolCollections = await db.toolCollections.where('toolId').equals(tool.id).toArray()
-    const collectionIds = toolCollections.map(tc => tc.collectionId)
-    const collections = collectionIds.length > 0
-        ? await db.collections.where('id').anyOf(collectionIds).toArray()
-        : []
-
-    return { ...tool, tags, collections }
+function dispatchUpdate(event: string) {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(event))
+    }
 }
