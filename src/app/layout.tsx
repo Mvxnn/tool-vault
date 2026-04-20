@@ -6,6 +6,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { Toaster } from "@/components/ui/sonner";
 
+import { PwaRegister } from "@/components/pwa-register";
+
 export const metadata: Metadata = {
   title: "Tool Vault",
   description: "Personal Developer Tool Database",
@@ -29,6 +31,7 @@ export default function RootLayout({
         style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
         className="antialiased"
       >
+        <PwaRegister />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
