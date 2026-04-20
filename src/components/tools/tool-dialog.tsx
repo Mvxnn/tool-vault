@@ -173,8 +173,10 @@ export function ToolDialog({ tool, trigger, open: controlledOpen, onOpenChange: 
                 setSelectedCollections([])
             }
 
-            // Dispatch event to refresh data
-            window.dispatchEvent(new Event('tools-updated'))
+            // Dispatch event to refresh data after a delay for Vercel Blob consistency
+            setTimeout(() => {
+                window.dispatchEvent(new Event('tools-updated'))
+            }, 2500)
         } catch (error) {
             console.error(error)
             toast.error(isEditing ? "Échec de la mise à jour" : "Échec de l'ajout")

@@ -85,9 +85,11 @@ export default function SettingsPage() {
             const result = await res.json()
 
             if (res.ok && result.success) {
-                toast.success('Données importées avec succès')
-                // Reload to reflect imported data
-                window.location.reload()
+                toast.success(`Données importées avec succès ! Outils: ${result.toolsCount || 0}`)
+                // Introduce a slight delay before reloading to allow Vercel Blob to propagate and give time for the user to read the toast
+                setTimeout(() => {
+                    window.location.reload()
+                }, 2000)
             } else {
                 toast.error(result.error || 'Erreur lors de l\'importation')
             }

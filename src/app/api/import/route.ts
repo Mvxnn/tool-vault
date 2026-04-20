@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     await saveDb(db)
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, toolsCount: data.tools?.length || 0 })
   } catch (error) {
     console.error('Import error:', error)
     return NextResponse.json({ 

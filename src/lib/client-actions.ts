@@ -195,6 +195,9 @@ export async function importData(jsonData: string): Promise<{ success: boolean; 
 
 function dispatchUpdate(event: string) {
     if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event(event))
+        // Delay by 2.5 seconds to account for Vercel Blob eventual consistency on overwrites
+        setTimeout(() => {
+            window.dispatchEvent(new Event(event))
+        }, 2500)
     }
 }
