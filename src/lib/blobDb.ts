@@ -94,12 +94,14 @@ export async function saveDb(data: DbSchema) {
     await put(DB_FILENAME, JSON.stringify(data), {
       access: 'public',
       addRandomSuffix: false,
+      allowOverwrite: true,
     });
   } catch (e: any) {
     if (e.message && e.message.includes('Cannot use public access on a private store')) {
       await put(DB_FILENAME, JSON.stringify(data), {
         access: 'private' as 'public', // TypeScript cast in case library types are outdated
         addRandomSuffix: false,
+        allowOverwrite: true,
       } as any);
     } else {
       throw e;
