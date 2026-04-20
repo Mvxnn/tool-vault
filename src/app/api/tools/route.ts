@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createTool, updateTool, deleteTool, toggleFavorite } from '@/actions/tools'
 import type { ToolFormData } from '@/actions/tools'
 
+// GET /api/tools
+export async function GET(request: NextRequest) {
+  const { getTools } = await import('@/actions/tools')
+  try {
+    const { searchParams } = new URL(request.url)
+    const query = searchParams.get('q') || undefined
+    const status = searchParams.get('status') || undefined
+
+    const tools = await getTools(query, status)
+    return NextResponse.json(tools)
+  } catch (error) {
+    console.error('GET /api/tools error:', error)
+    return NextResponse.json({ error: 'Failed to fetch tools' }, { status: 500 })
+  }
+}
+
 // POST /api/tools { action, id?, data }
 export async function POST(request: NextRequest) {
   try {
