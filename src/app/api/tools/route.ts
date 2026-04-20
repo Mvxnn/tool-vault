@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createTool, updateTool, deleteTool, toggleFavorite } from '@/actions/tools'
 import type { ToolFormData } from '@/actions/tools'

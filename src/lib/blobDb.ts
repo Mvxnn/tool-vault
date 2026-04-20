@@ -1,4 +1,5 @@
 import { put, list } from '@vercel/blob';
+import { unstable_noStore as noStore } from 'next/cache';
 
 const DB_FILENAME = 'data.json';
 
@@ -41,6 +42,7 @@ export interface DbSchema {
 }
 
 export async function getDb(): Promise<DbSchema> {
+  noStore();
   try {
     const { blobs } = await list();
     const file = blobs.find((b) => b.pathname === DB_FILENAME);
@@ -77,12 +79,9 @@ export async function getDb(): Promise<DbSchema> {
 }
 
 export async function saveDb(data: DbSchema) {
-  try {
-    await put(DB_FILENAME, JSON.stringify(data), {
-      access: 'public',
-      addRandomSuffix: false,
-    });
-  } catch (err) {
-    console.error("Error saving DB to blob:", err);
-  }
+  // We do not swallow the error here. If it fails, the caller (server action or API route) needs to know!
+  await put(DB_FILENAME, JSON.stringify(data), {
+    access: 'public',
+    addRandomSuffix: false,
+  });
 }

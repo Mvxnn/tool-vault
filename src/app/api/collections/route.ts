@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createCollection, deleteCollection } from '@/actions/collections'
 import type { CollectionFormData } from '@/actions/collections'
