@@ -1,4 +1,4 @@
-import { put, list } from '@vercel/blob';
+import { put, get, list } from '@vercel/blob';
 import { unstable_noStore as noStore } from 'next/cache';
 
 const DB_FILENAME = 'data.json';
@@ -44,6 +44,7 @@ export interface DbSchema {
 export async function getDb(): Promise<DbSchema> {
   noStore();
   try {
+    // Check if it exists first because get() throws if not found
     const { blobs } = await list();
     const file = blobs.find((b) => b.pathname === DB_FILENAME);
     
@@ -51,29 +52,30 @@ export async function getDb(): Promise<DbSchema> {
       return { tools: [], collections: [] };
     }
     
-    // Add cache buster to bypass Vercel Edge Cache since addRandomSuffix is false
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
-    const isPrivate = token && token.includes('_private_'); // Vercel tokens indicate private stores occasionally, but we'll always pass it just in case
-    
-    const response = await fetch(`${file.url}?t=${Date.now()}`, { 
-      cache: 'no-store',
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    // We try to get it as private since the user's store is private
+    // useCache: false strictly ensures we get the latest origin data immediately
+    const result = await get(DB_FILENAME, { 
+       access: 'private' as 'public', // Force type cast to resolve SDK versions where 'private' is missing from types
+       useCache: false 
+    } as any).catch(async (e) => {
+       // Fallback to public if it was miraculously a public store, though we know it's private 
+       return await get(DB_FILENAME, { access: 'public', useCache: false } as any);
     });
-    
-    if (!response.ok) {
-        console.error("Vercel Blob read error:", await response.text());
+
+    if (!result || !result.stream) {
         return { tools: [], collections: [] };
     }
-    
+
+    const response = new Response(result.stream);
     const db = await response.json() as DbSchema;
     
     // Parse dates
-    db.tools = db.tools.map(tool => ({
+    db.tools = (db.tools || []).map(tool => ({
         ...tool,
         createdAt: new Date(tool.createdAt),
         updatedAt: new Date(tool.updatedAt)
     }));
-    db.collections = db.collections.map(c => ({
+    db.collections = (db.collections || []).map(c => ({
         ...c,
         createdAt: new Date(c.createdAt),
         updatedAt: new Date(c.updatedAt)
@@ -87,24 +89,19 @@ export async function getDb(): Promise<DbSchema> {
 }
 
 export async function saveDb(data: DbSchema) {
-  // Check token to see if it's a private store or try public first?
-  // We can just use 'private' if we know it's private, but we don't.
-  // The error tells us it's a private store. We will attempt public, catch the specific error, and retry with private.
   try {
+    // Attempt private first, since we know user store is private!
+    await put(DB_FILENAME, JSON.stringify(data), {
+      access: 'private' as 'public',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    } as any);
+  } catch (e: any) {
+    // Fallback to public if somehow it complains about private access
     await put(DB_FILENAME, JSON.stringify(data), {
       access: 'public',
       addRandomSuffix: false,
       allowOverwrite: true,
     });
-  } catch (e: any) {
-    if (e.message && e.message.includes('Cannot use public access on a private store')) {
-      await put(DB_FILENAME, JSON.stringify(data), {
-        access: 'private' as 'public', // TypeScript cast in case library types are outdated
-        addRandomSuffix: false,
-        allowOverwrite: true,
-      } as any);
-    } else {
-      throw e;
-    }
   }
 }
