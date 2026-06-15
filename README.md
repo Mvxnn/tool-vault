@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🛠️ Tool Vault - Guide de Synchronisation & Déploiement
 
-## Getting Started
+Ce dépôt contient l'application **Tool Vault**, conçue pour organiser vos outils et sites web de développement. 
+Ce guide explique comment configurer l'application pour que votre PC (via le Web) et votre téléphone (via Capacitor) partagent la **même base de données distante** sans risque de doublons.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🚀 1. Déploiement Côté Serveur (Vercel)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Pour centraliser vos données, l'application doit être hébergée sur un serveur cloud. La plateforme recommandée est **Vercel**.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Créez un projet sur [Vercel](https://vercel.com/) lié à votre dépôt Git.
+2. Configurez les **Environment Variables** suivantes dans l'interface de Vercel :
+   - `BLOB_READ_WRITE_TOKEN` : Votre token Vercel Blob (pour le stockage de la base `data.json`).
+   - `PASSWORD` : Le mot de passe requis pour vous connecter à votre interface (Basic Auth).
+3. Déployez l'application. Vous obtiendrez une URL de production (ex: `https://mon-tool-vault.vercel.app`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 📱 2. Configuration et Build de l'Application Mobile (Capacitor)
 
-To learn more about Next.js, take a look at the following resources:
+Pour que l'application mobile affiche les mêmes données que votre PC, elle doit charger directement votre instance Vercel :
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Ouvrez le fichier [capacitor.config.ts](file:///c:/Users/maxen/Documents/tool-vault/capacitor.config.ts) dans votre éditeur.
+2. Décommentez la ligne `url` et remplacez la valeur par l'URL de votre application Vercel :
+   ```typescript
+   server: {
+       androidScheme: 'https',
+       url: 'https://mon-tool-vault.vercel.app', // <-- Votre URL Vercel ici
+       cleartext: true
+   }
+   ```
+3. Exécutez les commandes suivantes pour compiler et synchroniser l'application avec Android Studio :
+   ```bash
+   npm run build
+   npx cap sync android
+   ```
+4. Ouvrez le projet dans Android Studio pour lancer l'application sur votre téléphone :
+   ```bash
+   npx cap open android
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 📥 3. Importation intelligente (Anti-doublons)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+L'importation de fichiers JSON a été améliorée pour fusionner intelligemment vos données :
+- **Détection des doublons :** L'application vérifie si un site existe déjà en comparant les URLs nettoyées et les noms des outils.
+- **Fusion des données :** Si un doublon est détecté, l'application fusionne les tags, les collections associées, met à jour la note la plus élevée et conserve vos notes textuelles existantes, évitant ainsi toute perte de données.
+- **Sécurité :** Vous pouvez importer des fichiers depuis votre PC ou votre téléphone, les modifications se répercuteront immédiatement sur les deux appareils grâce à la base de données partagée.
