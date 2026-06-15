@@ -47,7 +47,7 @@ jobs:
         run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/tool-vault-debug-${{ github.run_number }}.apk
 
       - name: Upload APK to Google Drive
-        uses: mathisve/gdrive-upload-action@v2
+        uses: mathisve/gdrive-upload-action@main
         with:
           credentials: ${{ secrets.DRIVE_CREDENTIALS }}
           folderId: ${{ secrets.DRIVE_FOLDER_ID }}
