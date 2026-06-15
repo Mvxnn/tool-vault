@@ -55,3 +55,4 @@ jobs:
           credentials: ${{ secrets.DRIVE_CREDENTIALS }}
           folderId: ${{ secrets.DRIVE_FOLDER_ID }}
           filename: "android/app/build/outputs/apk/debug/tool-vault-debug-${{ github.run_number }}.apk"
+          encoded: false
