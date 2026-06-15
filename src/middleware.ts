@@ -2,34 +2,29 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const basicAuth = request.headers.get('authorization')
   const envPassword = process.env.PASSWORD
 
+  // We allow public access if no password is required and we are in development
   if (!envPassword) {
-    // If no password is set in the environment, we might want to allow access or block it.
-    // For safety, let's just bypass if no env password is set, or return 500.
-    // We'll allow access in development if no password is set.
     if (process.env.NODE_ENV === 'development') {
       return NextResponse.next()
     }
   }
 
-  if (envPassword) {
-    if (basicAuth) {
-      const authValue = basicAuth.split(' ')[1]
-      const [user, pwd] = atob(authValue).split(':')
+  // Check the cookie for authentication
+  const authToken = request.cookies.get('auth-token')?.value
+  const isAuthenticated = authToken === 'authenticated' || authToken === 'dev-token'
 
-      if (pwd === envPassword || user === envPassword) {
-        return NextResponse.next()
-      }
-    }
+  // If unauthenticated and trying to access protected routes, redirect to /login
+  if (!isAuthenticated && envPassword && !request.nextUrl.pathname.startsWith('/login')) {
+    const loginUrl = new URL('/login', request.url)
+    return NextResponse.redirect(loginUrl)
+  }
 
-    return new NextResponse('Authentication required', {
-      status: 401,
-      headers: {
-        'WWW-Authenticate': 'Basic realm="Secure Area"',
-      },
-    })
+  // If authenticated and trying to access /login, redirect to /
+  if (isAuthenticated && request.nextUrl.pathname.startsWith('/login')) {
+    const dashboardUrl = new URL('/', request.url)
+    return NextResponse.redirect(dashboardUrl)
   }
 
   return NextResponse.next()
@@ -42,8 +37,9 @@ export const config = {
      * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
+     * - favicon.ico, sitemap.xml, robots.txt, manifest.webmanifest (metadata files)
+     * - android/apple icons
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|manifest.webmanifest|icon.png|apple-icon.png).*)',
   ],
 }
