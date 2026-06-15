@@ -32,6 +32,9 @@ jobs:
       - name: Build Next.js Web App
         run: npm run build
 
+      - name: Create assets directory for Capacitor
+        run: mkdir -p android/app/src/main/assets
+
       - name: Sync Capacitor Android
         run: npx cap sync android
 
