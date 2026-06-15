@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch: # Allows you to run this manually from the Actions tab
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -49,8 +52,9 @@ jobs:
       - name: Rename APK
         run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/tool-vault-debug-${{ github.run_number }}.apk
 
-      - name: Upload APK as GitHub Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
         with:
-          name: tool-vault-debug-${{ github.run_number }}.apk
-          path: android/app/build/outputs/apk/debug/tool-vault-debug-${{ github.run_number }}.apk
+          tag_name: build-${{ github.run_number }}
+          name: "Development Build #${{ github.run_number }}"
+          files: android/app/build/outputs/apk/debug/tool-vault-debug-${{ github.run_number }}.apk
