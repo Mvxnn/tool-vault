@@ -49,11 +49,8 @@ jobs:
       - name: Rename APK
         run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/tool-vault-debug-${{ github.run_number }}.apk
 
-      - name: Upload APK to Google Drive
-        uses: mathisve/gdrive-upload-action@main
+      - name: Upload APK as GitHub Artifact
+        uses: actions/upload-artifact@v4
         with:
-          credentials: ${{ secrets.DRIVE_CREDENTIALS }}
-          folderId: ${{ secrets.DRIVE_FOLDER_ID }}
-          filename: "android/app/build/outputs/apk/debug/tool-vault-debug-${{ github.run_number }}.apk"
-          name: "tool-vault-debug-${{ github.run_number }}.apk"
-          encoded: false
+          name: tool-vault-debug-${{ github.run_number }}.apk
+          path: android/app/build/outputs/apk/debug/tool-vault-debug-${{ github.run_number }}.apk
