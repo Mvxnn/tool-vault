@@ -23,13 +23,16 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
           rel="stylesheet"
         />
       </head>
       <body
-        style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
-        className="antialiased"
+        style={{ 
+          "--font-sans": "'Inter', system-ui, -apple-system, sans-serif",
+          "--font-mono": "'JetBrains Mono', monospace"
+        } as React.CSSProperties}
+        className="antialiased font-sans"
       >
         <PwaRegister />
         <ThemeProvider

@@ -4,7 +4,6 @@ import React, { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ModeToggle } from '@/components/mode-toggle'
 import { Input } from '@/components/ui/input'
 import { Search, Menu, X, Hexagon, LayoutGrid, Layers, Star, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -144,7 +143,7 @@ export function Header() {
             </Suspense>
 
             <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-                <ModeToggle />
+                {/* Mode toggle removed per design spec */}
             </div>
         </header>
     )
