@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "cap:sync": "next build && npx cap sync android",
-    "cap:open": "npx cap open android"
+    "cap:open": "npx cap open android",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
