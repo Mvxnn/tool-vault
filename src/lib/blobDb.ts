@@ -84,7 +84,7 @@ export async function getDb(): Promise<DbSchema> {
     return db;
   } catch (err) {
     console.error("Error reading DB from blob:", err);
-    return { tools: [], collections: [] };
+    throw new Error("Failed to read database from storage. Please try again later.");
   }
 }
 
