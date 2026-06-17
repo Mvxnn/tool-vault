@@ -11,8 +11,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q') || undefined
     const status = searchParams.get('status') || undefined
+    const sort = searchParams.get('sort') || undefined
 
-    const tools = await getTools(query, status)
+    const tools = await getTools(query, status, sort)
     return NextResponse.json(tools)
   } catch (error) {
     console.error('GET /api/tools error:', error)

@@ -82,10 +82,11 @@ async function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
 // TOOL ACTIONS
 // ==========================================
 
-export async function getTools(query?: string, status?: string): Promise<ToolWithRelations[]> {
+export async function getTools(query?: string, status?: string, sort?: string): Promise<ToolWithRelations[]> {
     const params = new URLSearchParams()
     if (query) params.set('q', query)
     if (status && status !== 'ALL') params.set('status', status)
+    if (sort) params.set('sort', sort)
 
     const res = await fetch(`/api/tools${params.toString() ? '?' + params.toString() : ''}`, {
         cache: 'no-store',

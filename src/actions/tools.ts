@@ -19,7 +19,7 @@ export interface ToolFormData {
     collections?: string[]
 }
 
-export async function getTools(query?: string, status?: string) {
+export async function getTools(query?: string, status?: string, sort: string = 'date-desc') {
     const where: any = {}
 
     if (query) {
@@ -35,15 +35,26 @@ export async function getTools(query?: string, status?: string) {
         where.status = status
     }
 
+    let orderBy: any = { updatedAt: 'desc' }
+    if (sort === 'date-asc') {
+        orderBy = { createdAt: 'asc' }
+    } else if (sort === 'date-desc') {
+        orderBy = { createdAt: 'desc' }
+    } else if (sort === 'name-asc') {
+        orderBy = { name: 'asc' }
+    } else if (sort === 'name-desc') {
+        orderBy = { name: 'desc' }
+    } else if (sort === 'rating-desc') {
+        orderBy = { rating: 'desc' }
+    }
+
     return prisma.tool.findMany({
         where,
         include: {
             tags: true,
             collections: true
         },
-        orderBy: {
-            updatedAt: 'desc'
-        }
+        orderBy
     })
 }
 
