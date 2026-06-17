@@ -19,16 +19,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upsert collections
+    // Upsert collections by name to avoid unique constraint errors
+    const actualCollectionIds = new Map<string, string>()
     if (data.collections && Array.isArray(data.collections)) {
       for (const col of data.collections) {
-        await prisma.collection.upsert({
-            where: { id: col.id },
+        const dbCol = await prisma.collection.upsert({
+            where: { name: col.name },
             update: {
-                name: col.name,
-                description: col.description || null,
-                createdAt: new Date(col.createdAt),
-                updatedAt: new Date(col.updatedAt),
+                description: col.description || undefined,
             },
             create: {
                 id: col.id,
@@ -38,6 +36,7 @@ export async function POST(request: NextRequest) {
                 updatedAt: new Date(col.updatedAt),
             }
         })
+        actualCollectionIds.set(col.id, dbCol.id)
       }
     }
 
@@ -58,20 +57,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upsert tags first
+    // Upsert tags by name to avoid unique constraint errors
+    const actualTagIds = new Map<string, string>()
     for (const [id, tag] of tagMap) {
-        await prisma.tag.upsert({
-            where: { id },
-            update: { name: tag.name },
+        const dbTag = await prisma.tag.upsert({
+            where: { name: tag.name },
+            update: {},
             create: { id, name: tag.name }
         })
+        actualTagIds.set(id, dbTag.id)
     }
 
     // Process tools
     if (data.tools && Array.isArray(data.tools)) {
       for (const rawTool of data.tools) {
         const toolTagIds = toolTagsMap.get(rawTool.id) || []
+        const actualDbTagIds = toolTagIds.map(id => actualTagIds.get(id)).filter(Boolean) as string[]
+
         const toolColIds = toolCollectionsMap.get(rawTool.id) || []
+        const actualDbColIds = toolColIds.map(id => actualCollectionIds.get(id)).filter(Boolean) as string[]
 
         await prisma.tool.upsert({
             where: { id: rawTool.id },
@@ -89,11 +93,11 @@ export async function POST(request: NextRequest) {
                 updatedAt: new Date(),
                 tags: {
                     set: [], // clear existing
-                    connect: toolTagIds.map(id => ({ id }))
+                    connect: actualDbTagIds.map(id => ({ id }))
                 },
                 collections: {
                     set: [],
-                    connect: toolColIds.map(id => ({ id }))
+                    connect: actualDbColIds.map(id => ({ id }))
                 }
             },
             create: {
@@ -110,10 +114,10 @@ export async function POST(request: NextRequest) {
                 createdAt: new Date(rawTool.createdAt),
                 updatedAt: new Date(rawTool.updatedAt),
                 tags: {
-                    connect: toolTagIds.map(id => ({ id }))
+                    connect: actualDbTagIds.map(id => ({ id }))
                 },
                 collections: {
-                    connect: toolColIds.map(id => ({ id }))
+                    connect: actualDbColIds.map(id => ({ id }))
                 }
             }
         })
