@@ -1,16 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb, saveDb, type DbSchema, type ToolData, type CollectionData, type TagData } from '@/lib/blobDb'
-
-function normalizeUrl(urlStr: string): string {
-  try {
-    const url = new URL(urlStr);
-    return (url.hostname + url.pathname + url.search).replace(/^www\./i, '').replace(/\/$/, '');
-  } catch (e) {
-    return urlStr.trim().toLowerCase().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '');
-  }
-}
+import prisma from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,28 +11,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Format de données invalide' }, { status: 400 })
     }
 
-    const db = await getDb()
-
     // Build tag map from import data
-    const tagMap = new Map<string, TagData>()
+    const tagMap = new Map<string, any>()
     if (data.tags && Array.isArray(data.tags)) {
       for (const tag of data.tags) {
         tagMap.set(tag.id, { id: tag.id, name: tag.name })
       }
     }
 
-    // Build collection map
-    const collectionMap = new Map<string, CollectionData>()
+    // Upsert collections
     if (data.collections && Array.isArray(data.collections)) {
       for (const col of data.collections) {
-        const collectionData: CollectionData = {
-          id: col.id,
-          name: col.name,
-          description: col.description || null,
-          createdAt: new Date(col.createdAt),
-          updatedAt: new Date(col.updatedAt)
-        }
-        collectionMap.set(col.id, collectionData)
+        await prisma.collection.upsert({
+            where: { id: col.id },
+            update: {
+                name: col.name,
+                description: col.description || null,
+                createdAt: new Date(col.createdAt),
+                updatedAt: new Date(col.updatedAt),
+            },
+            create: {
+                id: col.id,
+                name: col.name,
+                description: col.description || null,
+                createdAt: new Date(col.createdAt),
+                updatedAt: new Date(col.updatedAt),
+            }
+        })
       }
     }
 
@@ -62,102 +58,67 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Process tools: merge imported data with existing
+    // Upsert tags first
+    for (const [id, tag] of tagMap) {
+        await prisma.tag.upsert({
+            where: { id },
+            update: { name: tag.name },
+            create: { id, name: tag.name }
+        })
+    }
+
+    // Process tools
     if (data.tools && Array.isArray(data.tools)) {
       for (const rawTool of data.tools) {
-        // Resolve tags for this tool
         const toolTagIds = toolTagsMap.get(rawTool.id) || []
-        const resolvedTags = toolTagIds
-          .map(tagId => tagMap.get(tagId))
-          .filter((t): t is TagData => t !== undefined)
-
-        // Resolve collections for this tool
         const toolColIds = toolCollectionsMap.get(rawTool.id) || []
-        const resolvedCollections = toolColIds
-          .map(colId => collectionMap.get(colId))
-          .filter((c): c is CollectionData => c !== undefined)
 
-        const importedTool: ToolData = {
-          id: rawTool.id,
-          name: rawTool.name,
-          url: rawTool.url,
-          description: rawTool.description || null,
-          notes: rawTool.notes || null,
-          rating: rawTool.rating || 0,
-          status: rawTool.status || 'TO_TRY',
-          pricingType: rawTool.pricingType || 'FREE',
-          price: rawTool.price || null,
-          image: rawTool.image || null,
-          tags: resolvedTags,
-          collections: resolvedCollections,
-          createdAt: new Date(rawTool.createdAt),
-          updatedAt: new Date(rawTool.updatedAt)
-        }
-
-        // Upsert logic with anti-duplicate comparison by URL and name
-        const existingIndex = db.tools.findIndex(t => {
-          if (t.id === importedTool.id) return true;
-          if (t.url && importedTool.url && normalizeUrl(t.url) === normalizeUrl(importedTool.url)) return true;
-          if (t.name.trim().toLowerCase() === importedTool.name.trim().toLowerCase()) return true;
-          return false;
-        })
-
-        if (existingIndex >= 0) {
-          const existing = db.tools[existingIndex]
-          
-          // Merge tags by name
-          const mergedTagsMap = new Map<string, TagData>()
-          existing.tags.forEach(t => mergedTagsMap.set(t.name.toLowerCase(), t))
-          importedTool.tags.forEach(t => {
-            if (!mergedTagsMap.has(t.name.toLowerCase())) {
-              mergedTagsMap.set(t.name.toLowerCase(), t)
+        await prisma.tool.upsert({
+            where: { id: rawTool.id },
+            update: {
+                name: rawTool.name,
+                url: rawTool.url,
+                description: rawTool.description || null,
+                notes: rawTool.notes || null,
+                rating: rawTool.rating || 0,
+                status: rawTool.status || 'TO_TRY',
+                pricingType: rawTool.pricingType || 'FREE',
+                price: rawTool.price || null,
+                image: rawTool.image || null,
+                createdAt: new Date(rawTool.createdAt),
+                updatedAt: new Date(),
+                tags: {
+                    set: [], // clear existing
+                    connect: toolTagIds.map(id => ({ id }))
+                },
+                collections: {
+                    set: [],
+                    connect: toolColIds.map(id => ({ id }))
+                }
+            },
+            create: {
+                id: rawTool.id,
+                name: rawTool.name,
+                url: rawTool.url,
+                description: rawTool.description || null,
+                notes: rawTool.notes || null,
+                rating: rawTool.rating || 0,
+                status: rawTool.status || 'TO_TRY',
+                pricingType: rawTool.pricingType || 'FREE',
+                price: rawTool.price || null,
+                image: rawTool.image || null,
+                createdAt: new Date(rawTool.createdAt),
+                updatedAt: new Date(rawTool.updatedAt),
+                tags: {
+                    connect: toolTagIds.map(id => ({ id }))
+                },
+                collections: {
+                    connect: toolColIds.map(id => ({ id }))
+                }
             }
-          })
-
-          // Merge collections by id/name
-          const mergedCollectionsMap = new Map<string, CollectionData>()
-          existing.collections.forEach(c => mergedCollectionsMap.set(c.id, c))
-          importedTool.collections.forEach(c => mergedCollectionsMap.set(c.id, c))
-
-          // Combine text fields/notes/images prioritizing newer if not empty
-          db.tools[existingIndex] = {
-            id: existing.id, // Preserve original ID to avoid breaking references
-            name: importedTool.name || existing.name,
-            url: importedTool.url || existing.url,
-            description: importedTool.description || existing.description,
-            notes: importedTool.notes ? (existing.notes && existing.notes !== importedTool.notes ? `${existing.notes}\n---\n${importedTool.notes}` : importedTool.notes) : existing.notes,
-            rating: Math.max(existing.rating || 0, importedTool.rating || 0),
-            status: importedTool.status === 'FAVORITE' || existing.status === 'FAVORITE' ? 'FAVORITE' : importedTool.status,
-            pricingType: importedTool.pricingType || existing.pricingType,
-            price: importedTool.price || existing.price,
-            image: importedTool.image || existing.image,
-            tags: Array.from(mergedTagsMap.values()),
-            collections: Array.from(mergedCollectionsMap.values()),
-            createdAt: existing.createdAt, // Preserve original date
-            updatedAt: new Date()
-          }
-        } else {
-          db.tools.push(importedTool)
-        }
+        })
       }
     }
-
-    // Upsert collections into the db
-    for (const [, col] of collectionMap) {
-      const existingIndex = db.collections.findIndex(c => c.id === col.id || c.name.trim().toLowerCase() === col.name.trim().toLowerCase())
-      if (existingIndex >= 0) {
-        // Update collection description if newer is provided
-        db.collections[existingIndex] = {
-          ...db.collections[existingIndex],
-          description: col.description || db.collections[existingIndex].description,
-          updatedAt: new Date()
-        }
-      } else {
-        db.collections.push(col)
-      }
-    }
-
-    await saveDb(db)
 
     return NextResponse.json({ success: true, toolsCount: data.tools?.length || 0 })
   } catch (error) {

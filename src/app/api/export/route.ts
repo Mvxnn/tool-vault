@@ -1,19 +1,21 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { getDb } from '@/lib/blobDb'
+import prisma from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const db = await getDb()
+    const tools = await prisma.tool.findMany({
+        include: { tags: true, collections: true }
+    })
+    const allTags = await prisma.tag.findMany()
+    const allCollections = await prisma.collection.findMany()
 
-    // Convert to the same format the client-actions export uses,
-    // so there is full compatibility with existing exported JSON files
     const tags: { id: string; name: string }[] = []
     const toolTags: { toolId: string; tagId: string }[] = []
     const toolCollections: { toolId: string; collectionId: string }[] = []
 
-    for (const tool of db.tools) {
+    for (const tool of tools) {
       for (const tag of tool.tags) {
         if (!tags.find(t => t.id === tag.id)) {
           tags.push(tag)
@@ -25,13 +27,12 @@ export async function GET() {
       }
     }
 
-    // Export tools without embedded tags/collections (flat format)
-    const flatTools = db.tools.map(({ tags, collections, ...rest }) => rest)
+    const flatTools = tools.map(({ tags, collections, ...rest }) => rest)
 
     const exportData = {
       tools: flatTools,
-      tags,
-      collections: db.collections,
+      tags: allTags,
+      collections: allCollections,
       toolTags,
       toolCollections,
       version: 1,

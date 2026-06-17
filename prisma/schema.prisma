@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Tool {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  description String?
+  notes       String?
+  rating      Int      @default(0)
+  status      String   @default("TO_TRY")
+  pricingType String   @default("FREE")
+  price       String?
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tags        Tag[]    @relation("ToolTags")
+  collections Collection[] @relation("ToolCollections")
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+
+  tools Tool[] @relation("ToolTags")
+}
+
+model Collection {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tools       Tool[]   @relation("ToolCollections")
+}

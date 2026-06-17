@@ -1,9 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getDb, saveDb } from '@/lib/blobDb'
-import type { ToolData } from '@/lib/blobDb'
-import { v4 as uuidv4 } from 'uuid'
+import prisma from '@/lib/prisma'
 
 export type ToolStatus = 'TO_TRY' | 'TESTED' | 'FAVORITE' | 'DEPRECATED'
 
@@ -22,58 +20,60 @@ export interface ToolFormData {
 }
 
 export async function getTools(query?: string, status?: string) {
-    const db = await getDb()
-    let tools = db.tools
+    const where: any = {}
 
     if (query) {
         const lowerQuery = query.toLowerCase()
-        tools = tools.filter(t => 
-            t.name.toLowerCase().includes(lowerQuery) || 
-            (t.description && t.description.toLowerCase().includes(lowerQuery)) ||
-            t.tags.some(tag => tag.name.toLowerCase().includes(lowerQuery))
-        )
+        where.OR = [
+            { name: { contains: lowerQuery, mode: 'insensitive' } },
+            { description: { contains: lowerQuery, mode: 'insensitive' } },
+            { tags: { some: { name: { contains: lowerQuery, mode: 'insensitive' } } } }
+        ]
     }
 
     if (status && status !== 'ALL') {
-        tools = tools.filter(t => t.status === status)
+        where.status = status
     }
 
-    return tools.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    return prisma.tool.findMany({
+        where,
+        include: {
+            tags: true,
+            collections: true
+        },
+        orderBy: {
+            updatedAt: 'desc'
+        }
+    })
 }
 
 export async function createTool(data: ToolFormData) {
-    const db = await getDb()
-    
-    // Resolve tags (create pseudo tags, though we don't strictly need a separate tag table now)
-    const resolvedTags = data.tags.map(tagName => ({
-        id: uuidv4(),
-        name: tagName
-    }))
-
-    // Resolve collections
-    const resolvedCollections = (data.collections || [])
-        .map(id => db.collections.find(c => c.id === id))
-        .filter((c): c is NonNullable<typeof c> => c !== undefined)
-
-    const newTool: ToolData = {
-        id: uuidv4(),
-        name: data.name,
-        url: data.url,
-        description: data.description || null,
-        notes: data.notes || null,
-        rating: data.rating || 0,
-        status: data.status || 'TO_TRY',
-        pricingType: data.pricingType || 'FREE',
-        price: data.price || null,
-        image: data.image || null,
-        tags: resolvedTags,
-        collections: resolvedCollections,
-        createdAt: new Date(),
-        updatedAt: new Date()
-    }
-
-    db.tools.push(newTool)
-    await saveDb(db)
+    const newTool = await prisma.tool.create({
+        data: {
+            name: data.name,
+            url: data.url,
+            description: data.description,
+            notes: data.notes,
+            rating: data.rating || 0,
+            status: data.status || 'TO_TRY',
+            pricingType: data.pricingType || 'FREE',
+            price: data.price,
+            image: data.image,
+            tags: {
+                connectOrCreate: data.tags.map(tagName => ({
+                    where: { name: tagName },
+                    create: { name: tagName }
+                }))
+            },
+            collections: {
+                connect: (data.collections || []).map(id => ({ id }))
+            }
+        },
+        include: {
+            tags: true,
+            collections: true
+        }
+    })
 
     try {
         revalidatePath('/')
@@ -82,44 +82,42 @@ export async function createTool(data: ToolFormData) {
 }
 
 export async function updateTool(id: string, data: Partial<ToolFormData>) {
-    const db = await getDb()
-    const toolIndex = db.tools.findIndex(t => t.id === id)
-    
-    if (toolIndex === -1) throw new Error("Tool not found")
+    const updateData: any = {
+        name: data.name,
+        url: data.url,
+        description: data.description,
+        notes: data.notes,
+        rating: data.rating,
+        status: data.status,
+        pricingType: data.pricingType,
+        price: data.price,
+        image: data.image,
+    }
 
-    const existingTool = db.tools[toolIndex]
-
-    let resolvedTags = existingTool.tags
     if (data.tags) {
-        resolvedTags = data.tags.map(tagName => ({
-            id: uuidv4(),
-            name: tagName
-        }))
+        updateData.tags = {
+            set: [], // clear existing
+            connectOrCreate: data.tags.map(tagName => ({
+                where: { name: tagName },
+                create: { name: tagName }
+            }))
+        }
     }
 
-    let resolvedCollections = existingTool.collections
     if (data.collections) {
-        resolvedCollections = data.collections
-            .map(cId => db.collections.find(c => c.id === cId))
-            .filter((c): c is NonNullable<typeof c> => c !== undefined)
+        updateData.collections = {
+            set: data.collections.map(cId => ({ id: cId }))
+        }
     }
 
-    const updatedTool: ToolData = {
-        ...existingTool,
-        ...data,
-        description: data.description !== undefined ? data.description : existingTool.description,
-        notes: data.notes !== undefined ? data.notes : existingTool.notes,
-        status: data.status !== undefined ? data.status : existingTool.status,
-        pricingType: data.pricingType !== undefined ? data.pricingType : existingTool.pricingType,
-        price: data.price !== undefined ? data.price : existingTool.price,
-        image: data.image !== undefined ? data.image : existingTool.image,
-        tags: resolvedTags,
-        collections: resolvedCollections,
-        updatedAt: new Date()
-    }
-
-    db.tools[toolIndex] = updatedTool
-    await saveDb(db)
+    const updatedTool = await prisma.tool.update({
+        where: { id },
+        data: updateData,
+        include: {
+            tags: true,
+            collections: true
+        }
+    })
 
     try {
         revalidatePath('/')
@@ -128,9 +126,9 @@ export async function updateTool(id: string, data: Partial<ToolFormData>) {
 }
 
 export async function deleteTool(id: string) {
-    const db = await getDb()
-    db.tools = db.tools.filter(t => t.id !== id)
-    await saveDb(db)
+    await prisma.tool.delete({
+        where: { id }
+    })
     
     try {
         revalidatePath('/')
@@ -138,13 +136,12 @@ export async function deleteTool(id: string) {
 }
 
 export async function toggleFavorite(id: string, isFavorite: boolean) {
-    const db = await getDb()
-    const tool = db.tools.find(t => t.id === id)
-    if (tool) {
-        tool.status = isFavorite ? 'FAVORITE' : 'TESTED'
-        tool.updatedAt = new Date()
-        await saveDb(db)
-    }
+    await prisma.tool.update({
+        where: { id },
+        data: {
+            status: isFavorite ? 'FAVORITE' : 'TESTED'
+        }
+    })
     
     try {
         revalidatePath('/')
